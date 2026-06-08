@@ -89,6 +89,17 @@ const cards: DashCard[] = [
     circleColor: '#E31E24',
     isSvg: true,
   },
+  {
+    href: '/admin/clover-settings',
+    badge: 'Connect',
+    badgeColor: '#76a713',
+    iconClass: 'fa-solid fa-plug',
+    iconColor: '#76a713',
+    bgColor: 'rgba(118,167,19,0.08)',
+    title: 'Clover Connection',
+    desc: 'Connect your Clover account and store the access token. Required for inventory, orders, and POS synchronization.',
+    circleColor: '#76a713',
+  },
 ];
 
 export default function AdminDashboard() {
