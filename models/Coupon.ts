@@ -45,7 +45,6 @@ const CouponSchema = new Schema<ICoupon>(
   { timestamps: true }
 );
 
-CouponSchema.index({ code: 1 }, { unique: true });
 CouponSchema.index({ isActive: 1, validTill: 1 });
 
 if (process.env.NODE_ENV === 'development' && mongoose.models.Coupon) {
