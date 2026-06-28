@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import dbConnect from '@/lib/db';
 import Category from '@/models/Category';
+import { cloverFetch } from '@/lib/clover';
 
 export async function POST() {
   const session = await getServerSession(authOptions);
@@ -10,14 +11,7 @@ export async function POST() {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const base = process.env.CLOVER_BASE_URL;
-  const merchantId = process.env.CLOVER_MERCHANT_ID;
-  const token = process.env.CLOVER_ACCESS_TOKEN;
-
-  const url = `${base}/v3/merchants/${merchantId}/categories`;
-  const resp = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const resp = await cloverFetch('/categories');
 
   if (!resp.ok) {
     return NextResponse.json({ error: 'Clover API error', status: resp.status }, { status: 502 });
