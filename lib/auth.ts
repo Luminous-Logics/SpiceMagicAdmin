@@ -37,7 +37,15 @@ export const authOptions: NextAuthOptions = {
         ]
       : []),
   ],
-  session: { strategy: 'jwt' },
+  session: {
+    strategy: 'jwt',
+    // Force re-auth after 30 minutes. The token only extends while the user is
+    // active (see updateAge + client refetch), so an idle session expires.
+    maxAge: 30 * 60,
+    // Re-issue the token at most every 5 min when the session is refreshed,
+    // giving a rolling window for active users without writing on every request.
+    updateAge: 5 * 60,
+  },
   secret: process.env.NEXTAUTH_SECRET,
   pages: {
     signIn: '/login',

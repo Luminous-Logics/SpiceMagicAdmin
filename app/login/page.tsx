@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { signIn, useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import Image from 'next/image';
 import toast from 'react-hot-toast';
 
@@ -234,7 +235,14 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p style={{ textAlign: 'center', fontSize: 12, color: '#bbb', marginTop: 24, marginBottom: 0 }}>
+        <p style={{ textAlign: 'center', fontSize: 13, color: '#666', marginTop: 24, marginBottom: 0 }}>
+          Don&apos;t have an account?{' '}
+          <Link href="/register" style={{ color: '#E31E24', fontWeight: 600, textDecoration: 'none' }}>
+            Register
+          </Link>
+        </p>
+
+        <p style={{ textAlign: 'center', fontSize: 12, color: '#bbb', marginTop: 14, marginBottom: 0 }}>
           SpiceMagik Admin · Restricted Access
         </p>
         </div>{/* /form body */}
