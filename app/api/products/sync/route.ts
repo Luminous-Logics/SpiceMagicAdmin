@@ -16,6 +16,7 @@ interface CloverItem {
   priceType?: string;
   unitName?: string;
   stockCount?: number | null;
+  itemStock?: { stockCount?: number | null; quantity?: number | null };
   categories?: { elements?: { id: string; name: string }[] };
 }
 
@@ -52,7 +53,7 @@ export async function POST() {
     // parallelism), and we throttle between pages, so concurrency is naturally
     // capped at 1 - well under Clover's rate limit.
     while (true) {
-      const path = `/items?expand=categories&limit=${pageSize}&offset=${offset}`;
+      const path = `/items?expand=categories,itemStock&limit=${pageSize}&offset=${offset}`;
 
       console.log(`[${timestamp}] Fetching page...`);
       console.log(`[${timestamp}]   Offset: ${offset}`);
@@ -123,7 +124,10 @@ export async function POST() {
           category,
           priceType: item.priceType === 'PER_UNIT' ? 'PER_UNIT' : 'FIXED',
           unitLabel: item.unitName || '',
-          stock: item.stockCount ?? null,
+          stock:
+            item.itemStock?.quantity != null
+              ? Math.round(item.itemStock.quantity)
+              : item.itemStock?.stockCount ?? null,
           updatedAt: new Date(),
         };
 
