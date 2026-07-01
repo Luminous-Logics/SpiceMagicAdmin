@@ -5,12 +5,20 @@ import SessionWrapper from './components/SessionWrapper';
 export const metadata: Metadata = {
   title: 'SpiceMagik Admin',
   description: 'SpiceMagik Admin Panel',
+  icons: {
+    icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+    apple: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
+        {/* Favicon (served from app/favicon.ico) */}
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="apple-touch-icon" href="/favicon.ico" />
         {/* Bootstrap 5 */}
         <link
           rel="stylesheet"
