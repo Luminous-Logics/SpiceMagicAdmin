@@ -9,6 +9,10 @@ import {
   CLOVER_THROTTLE_DELAY_MS,
 } from '@/lib/clover';
 
+// Give the sync enough wall-clock time to page through Clover and flush writes.
+// Vercel's Hobby plan caps this at 60s; raise on Pro if the catalog grows large.
+export const maxDuration = 60;
+
 interface CloverItem {
   id: string;
   name: string;
@@ -105,17 +109,30 @@ export async function POST() {
       await sleep(CLOVER_THROTTLE_DELAY_MS);
     }
 
-    // ----- Business logic below is unchanged (mapping / upsert / Mongo) -----
+    // ----- Business logic: bulk read + bulk write (one round trip each) -----
     let upserted = 0;
     let unchanged = 0;
     const errors: string[] = [];
 
     console.log(`[${timestamp}] Processing ${allItems.length} items for sync`);
 
+    // Load every existing product once (only the fields needed for change
+    // detection) instead of issuing one findOne per item. This collapses N
+    // sequential DB round trips into a single query.
+    const existingProducts = await Product.find(
+      {},
+      'productId name price category stock',
+    ).lean();
+    const existingMap = new Map(existingProducts.map((p) => [p.productId, p]));
+
+    // Accumulate all inserts/updates and flush them in a single bulkWrite so the
+    // DB work is one round trip rather than one write per changed item. This is
+    // what keeps the whole sync well under the function timeout.
+    const bulkOps: Parameters<typeof Product.bulkWrite>[0] = [];
+
     for (const item of allItems) {
       try {
         const category = item.categories?.elements?.[0]?.name || '';
-        const existing = await Product.findOne({ productId: item.id });
 
         const doc = {
           productId: item.id,
@@ -131,10 +148,11 @@ export async function POST() {
           updatedAt: new Date(),
         };
 
+        const existing = existingMap.get(item.id);
+
         if (!existing) {
-          await Product.create(doc);
+          bulkOps.push({ insertOne: { document: doc } });
           upserted++;
-          console.log(`[${timestamp}] Product created - ID: ${item.id}, Name: ${item.name}`);
         } else {
           const changed =
             existing.name !== doc.name ||
@@ -142,9 +160,13 @@ export async function POST() {
             existing.category !== doc.category ||
             existing.stock !== doc.stock;
           if (changed) {
-            await Product.updateOne({ productId: item.id }, { $set: doc });
+            bulkOps.push({
+              updateOne: {
+                filter: { productId: item.id },
+                update: { $set: doc },
+              },
+            });
             upserted++;
-            console.log(`[${timestamp}] Product updated - ID: ${item.id}, Name: ${item.name}`);
           } else {
             unchanged++;
           }
@@ -154,6 +176,13 @@ export async function POST() {
         errors.push(errorMsg);
         console.error(`[${timestamp}] Product sync error - ${errorMsg}`);
       }
+    }
+
+    // A single unordered bulk write: independent ops still apply even if one
+    // fails, and Mongoose applies schema defaults to insertOne documents.
+    if (bulkOps.length > 0) {
+      await Product.bulkWrite(bulkOps, { ordered: false });
+      console.log(`[${timestamp}] Bulk write flushed - Operations: ${bulkOps.length}`);
     }
 
     const durationMs = Date.now() - startedAt;
