@@ -35,6 +35,17 @@ interface DashCard {
 
 const cards: DashCard[] = [
   {
+    href: '/admin/orders',
+    badge: 'Live',
+    badgeColor: '#E31E24',
+    iconClass: 'fa-solid fa-receipt',
+    iconColor: '#E31E24',
+    bgColor: 'rgba(227,30,36,0.08)',
+    title: 'Orders',
+    desc: 'View and manage customer orders, track fulfillment through the order lifecycle, and export reports.',
+    circleColor: '#E31E24',
+  },
+  {
     href: '/admin/sync',
     badge: 'Live',
     badgeColor: '#76a713',

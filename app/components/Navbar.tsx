@@ -29,6 +29,10 @@ export default function Navbar() {
           <i className="fas fa-home" />
           <span>Dashboard</span>
         </Link>
+        <Link href="/admin/orders" className="spice-navbar__link">
+          <i className="fas fa-receipt" />
+          <span>Orders</span>
+        </Link>
         <button
           onClick={() => signOut({ callbackUrl: '/login' })}
           className="spice-navbar__logout"
@@ -56,6 +60,14 @@ export default function Navbar() {
         >
           <i className="fas fa-home" />
           Dashboard
+        </Link>
+        <Link
+          href="/admin/orders"
+          className="spice-navbar__mobile-link"
+          onClick={() => setMenuOpen(false)}
+        >
+          <i className="fas fa-receipt" />
+          Orders
         </Link>
         <button
           className="spice-navbar__mobile-logout"
