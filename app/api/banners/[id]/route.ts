@@ -23,10 +23,16 @@ export async function PUT(
     const body = await req.json();
 
     const allowed: Record<string, unknown> = {};
-    if (body.imageUrl   !== undefined) allowed.imageUrl   = body.imageUrl;
+    if (body.imageUrl   !== undefined) {
+      if (typeof body.imageUrl !== 'string' || !body.imageUrl.trim()) {
+        return NextResponse.json({ error: 'imageUrl cannot be empty' }, { status: 400 });
+      }
+      allowed.imageUrl = body.imageUrl.trim();
+    }
     if (body.publicId   !== undefined) allowed.publicId   = body.publicId;
     if (body.title      !== undefined) allowed.title      = body.title;
     if (body.subtitle   !== undefined) allowed.subtitle   = body.subtitle;
+    if (body.description !== undefined) allowed.description = body.description;
     if (body.redirectUrl !== undefined) allowed.redirectUrl = body.redirectUrl;
     if (body.displayOrder !== undefined) allowed.displayOrder = body.displayOrder;
     if (typeof body.isActive === 'boolean') allowed.isActive = body.isActive;

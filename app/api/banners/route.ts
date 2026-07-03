@@ -38,9 +38,9 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { imageUrl, publicId, section, title, subtitle, redirectUrl, displayOrder, isActive } = body;
+    const { imageUrl, publicId, section, title, subtitle, description, redirectUrl, displayOrder, isActive } = body;
 
-    if (!imageUrl) {
+    if (!imageUrl || typeof imageUrl !== 'string' || !imageUrl.trim()) {
       return NextResponse.json({ error: 'imageUrl is required' }, { status: 400 });
     }
     if (!section || !BANNER_SECTIONS.includes(section)) {
@@ -49,11 +49,12 @@ export async function POST(req: NextRequest) {
 
     await dbConnect();
     const banner = await Banner.create({
-      imageUrl,
+      imageUrl:     imageUrl.trim(),
       publicId:     publicId     || undefined,
       section,
       title:        title        || undefined,
       subtitle:     subtitle     || undefined,
+      description:  description   || undefined,
       redirectUrl:  redirectUrl  || undefined,
       displayOrder: displayOrder ?? 0,
       isActive:     isActive     !== undefined ? isActive : true,

@@ -2,27 +2,24 @@ import mongoose, { Document, Schema } from 'mongoose';
 
 export const BANNER_SECTIONS = [
   'HERO',
-  'HOT_DEALS',
-  'LATEST_PRODUCTS',
-  'BEST_SELLERS',
   'CATEGORY_BANNER',
   'OFFER_STRIP',
+  'HOT_DEALS',
 ] as const;
 
 export type BannerSection = typeof BANNER_SECTIONS[number];
 
 export const SECTION_LABELS: Record<BannerSection, string> = {
-  HERO:            'Hero Section',
-  HOT_DEALS:       'Hot Deals',
-  LATEST_PRODUCTS: 'Latest Products',
-  BEST_SELLERS:    'Best Sellers',
+  HERO:            'Hero Slideshow',
   CATEGORY_BANNER: 'Category Banner',
   OFFER_STRIP:     'Offer Strip',
+  HOT_DEALS:       'Hot Deals',
 };
 
 export interface IBanner extends Document {
   title?: string;
   subtitle?: string;
+  description?: string;
   imageUrl: string;
   publicId?: string;
   section: BannerSection;
@@ -37,6 +34,7 @@ const BannerSchema = new Schema<IBanner>(
   {
     title:        { type: String },
     subtitle:     { type: String },
+    description:  { type: String },
     imageUrl:     { type: String, required: true },
     publicId:     { type: String },
     section:      { type: String, required: true, enum: BANNER_SECTIONS },
