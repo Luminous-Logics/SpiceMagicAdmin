@@ -41,7 +41,12 @@ interface SectionConfig {
   note: string;
   count: string;
   fields: Partial<Record<FieldKey, string>>;
+  hasText: boolean; // whether overlaid text (and therefore a text color) is shown
 }
+
+/* Quick-pick swatches for the text color control */
+const COLOR_PRESETS = ['#ffffff', '#000000', '#E31E24', '#f59e0b', '#16a34a', '#1e293b'];
+const DEFAULT_TEXT_COLOR = '#ffffff';
 
 const SECTION_CONFIG: Record<BannerSection, SectionConfig> = {
   HERO: {
@@ -55,6 +60,7 @@ const SECTION_CONFIG: Record<BannerSection, SectionConfig> = {
       description: 'Paragraph under the headline (optional — a default is used if empty)',
       redirectUrl: '“Purchase” button link (defaults to /shop if empty)',
     },
+    hasText: true,
   },
   CATEGORY_BANNER: {
     dimensions: '384 × 300 px',
@@ -66,6 +72,7 @@ const SECTION_CONFIG: Record<BannerSection, SectionConfig> = {
       subtitle:    'Box subtitle',
       redirectUrl: '“Shop Now” button link',
     },
+    hasText: true,
   },
   OFFER_STRIP: {
     dimensions: '960 × 501 px',
@@ -77,6 +84,7 @@ const SECTION_CONFIG: Record<BannerSection, SectionConfig> = {
       subtitle:    'Box subtitle',
       redirectUrl: '“Shop Now” button link',
     },
+    hasText: true,
   },
   HOT_DEALS: {
     dimensions: '270 × 420 px',
@@ -87,6 +95,7 @@ const SECTION_CONFIG: Record<BannerSection, SectionConfig> = {
       title:       'Used as image alt text',
       redirectUrl: 'Makes the banner clickable (optional)',
     },
+    hasText: false,
   },
 };
 
@@ -100,6 +109,7 @@ interface Banner {
   publicId?: string;
   section: BannerSection;
   redirectUrl?: string;
+  textColor?: string;
   displayOrder: number;
   isActive: boolean;
   createdAt: string;
@@ -111,6 +121,7 @@ interface FormState {
   subtitle: string;
   description: string;
   redirectUrl: string;
+  textColor: string;
   displayOrder: number;
   isActive: boolean;
   existingImageUrl: string;
@@ -119,6 +130,7 @@ interface FormState {
 
 const EMPTY_FORM: FormState = {
   section: '', title: '', subtitle: '', description: '', redirectUrl: '',
+  textColor: DEFAULT_TEXT_COLOR,
   displayOrder: 0, isActive: true, existingImageUrl: '', existingPublicId: '',
 };
 
@@ -216,6 +228,7 @@ export default function BannersPage() {
       subtitle:         b.subtitle     || '',
       description:      b.description   || '',
       redirectUrl:      b.redirectUrl  || '',
+      textColor:        b.textColor    || DEFAULT_TEXT_COLOR,
       displayOrder:     b.displayOrder,
       isActive:         b.isActive,
       existingImageUrl: b.imageUrl,
@@ -288,6 +301,7 @@ export default function BannersPage() {
       subtitle:     'subtitle'    in cfg.fields ? (form.subtitle    || undefined) : undefined,
       description:  'description' in cfg.fields ? (form.description || undefined) : undefined,
       redirectUrl:  'redirectUrl' in cfg.fields ? (form.redirectUrl || undefined) : undefined,
+      textColor:    cfg.hasText ? (form.textColor || undefined) : undefined,
       displayOrder: form.displayOrder,
       isActive:     form.isActive,
     };
@@ -622,6 +636,62 @@ export default function BannersPage() {
                     </div>
                   )}
 
+                  {/* ── Text color ──────────────────────── */}
+                  {(!activeCfg || activeCfg.hasText) && (
+                    <div className="col-12">
+                      <label style={labelStyle}>Text Color</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                        {/* native color picker */}
+                        <input
+                          type="color"
+                          value={/^#[0-9a-fA-F]{6}$/.test(form.textColor) ? form.textColor : DEFAULT_TEXT_COLOR}
+                          onChange={e => setField('textColor', e.target.value)}
+                          style={{ width: 46, height: 40, padding: 0, border: '1.5px solid #e5e7eb', borderRadius: 10, background: '#fff', cursor: 'pointer' }}
+                          title="Pick a color"
+                        />
+                        {/* hex input */}
+                        <input
+                          type="text"
+                          value={form.textColor}
+                          onChange={e => setField('textColor', e.target.value)}
+                          placeholder="#ffffff"
+                          style={{ ...inputStyle, width: 130, fontFamily: 'monospace' }}
+                        />
+                        {/* preset swatches */}
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          {COLOR_PRESETS.map(c => (
+                            <button
+                              key={c}
+                              type="button"
+                              onClick={() => setField('textColor', c)}
+                              title={c}
+                              style={{
+                                width: 26, height: 26, borderRadius: '50%', cursor: 'pointer',
+                                background: c,
+                                border: form.textColor.toLowerCase() === c.toLowerCase()
+                                  ? '2px solid #E31E24' : '1.5px solid #e5e7eb',
+                                boxShadow: c.toLowerCase() === '#ffffff' ? 'inset 0 0 0 1px #eee' : 'none',
+                              }}
+                            />
+                          ))}
+                        </div>
+                        {/* live preview */}
+                        <div style={{
+                          marginLeft: 'auto',
+                          background: 'linear-gradient(135deg, #64748b, #334155)',
+                          borderRadius: 8, padding: '8px 16px', minWidth: 150, textAlign: 'center',
+                        }}>
+                          <span style={{ color: form.textColor || DEFAULT_TEXT_COLOR, fontWeight: 700, fontSize: 15 }}>
+                            {form.title || 'Sample Title'}
+                          </span>
+                        </div>
+                      </div>
+                      <p style={helperStyle}>
+                        Color applied to the banner’s title, subtitle and description on the storefront. Leave as-is for the default.
+                      </p>
+                    </div>
+                  )}
+
                   {/* ── Active toggle ───────────────────── */}
                   <div className="col-md-6" style={{ display: 'flex', alignItems: 'center' }}>
                     <div style={{ paddingTop: 20 }}>
@@ -855,7 +925,17 @@ function SectionGroup({
               <div style={{ flex: 1, minWidth: 140 }}>
                 {b.title || b.subtitle || b.redirectUrl ? (
                   <>
-                    {b.title && <div style={{ fontWeight: 700, fontSize: 13, color: '#222' }}>{b.title}</div>}
+                    {b.title && (
+                      <div style={{ fontWeight: 700, fontSize: 13, color: '#222', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {b.textColor && (
+                          <span
+                            title={`Text color ${b.textColor}`}
+                            style={{ width: 12, height: 12, borderRadius: '50%', background: b.textColor, border: '1px solid #ddd', flexShrink: 0 }}
+                          />
+                        )}
+                        {b.title}
+                      </div>
+                    )}
                     {b.subtitle && <div style={{ fontSize: 12, color: '#888' }}>{b.subtitle}</div>}
                     {b.redirectUrl && (
                       <div style={{ fontSize: 11, color: '#3498db', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>

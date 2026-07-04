@@ -24,6 +24,7 @@ export interface IBanner extends Document {
   publicId?: string;
   section: BannerSection;
   redirectUrl?: string;
+  textColor?: string;
   displayOrder: number;
   isActive: boolean;
   createdAt: Date;
@@ -39,6 +40,8 @@ const BannerSchema = new Schema<IBanner>(
     publicId:     { type: String },
     section:      { type: String, required: true, enum: BANNER_SECTIONS },
     redirectUrl:  { type: String },
+    // Optional CSS color for the overlaid text (e.g. "#ffffff"). Empty ⇒ storefront default.
+    textColor:    { type: String },
     displayOrder: { type: Number, default: 0 },
     isActive:     { type: Boolean, default: true },
   },

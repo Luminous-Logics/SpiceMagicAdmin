@@ -34,6 +34,7 @@ export async function PUT(
     if (body.subtitle   !== undefined) allowed.subtitle   = body.subtitle;
     if (body.description !== undefined) allowed.description = body.description;
     if (body.redirectUrl !== undefined) allowed.redirectUrl = body.redirectUrl;
+    if (body.textColor  !== undefined) allowed.textColor  = body.textColor;
     if (body.displayOrder !== undefined) allowed.displayOrder = body.displayOrder;
     if (typeof body.isActive === 'boolean') allowed.isActive = body.isActive;
     if (body.section !== undefined) {

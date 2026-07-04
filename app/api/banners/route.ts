@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { imageUrl, publicId, section, title, subtitle, description, redirectUrl, displayOrder, isActive } = body;
+    const { imageUrl, publicId, section, title, subtitle, description, redirectUrl, textColor, displayOrder, isActive } = body;
 
     if (!imageUrl || typeof imageUrl !== 'string' || !imageUrl.trim()) {
       return NextResponse.json({ error: 'imageUrl is required' }, { status: 400 });
@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
       subtitle:     subtitle     || undefined,
       description:  description   || undefined,
       redirectUrl:  redirectUrl  || undefined,
+      textColor:    textColor    || undefined,
       displayOrder: displayOrder ?? 0,
       isActive:     isActive     !== undefined ? isActive : true,
     });
