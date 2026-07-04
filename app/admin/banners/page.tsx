@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { HexColorPicker } from 'react-colorful';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -165,7 +166,9 @@ export default function BannersPage() {
   const [imgHover, setImgHover]       = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Banner | null>(null);
   const [dragId, setDragId]           = useState<string | null>(null);
+  const [showColorPicker, setShowColorPicker] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
 
   /* auth guard */
   useEffect(() => {
@@ -190,6 +193,18 @@ export default function BannersPage() {
   useEffect(() => {
     if (session?.user?.role === 'admin') fetchBanners();
   }, [session, fetchBanners]);
+
+  /* close color popover on outside click */
+  useEffect(() => {
+    if (!showColorPicker) return;
+    const onClick = (e: MouseEvent) => {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+        setShowColorPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [showColorPicker]);
 
   /* group banners by section (only the known sections), sorted by order */
   const grouped = useMemo(() => {
@@ -248,6 +263,7 @@ export default function BannersPage() {
     setSelectedFile(null);
     setPreviewUrl('');
     setFormError('');
+    setShowColorPicker(false);
   };
 
   /* file selection */
@@ -641,14 +657,49 @@ export default function BannersPage() {
                     <div className="col-12">
                       <label style={labelStyle}>Text Color</label>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                        {/* native color picker */}
-                        <input
-                          type="color"
-                          value={/^#[0-9a-fA-F]{6}$/.test(form.textColor) ? form.textColor : DEFAULT_TEXT_COLOR}
-                          onChange={e => setField('textColor', e.target.value)}
-                          style={{ width: 46, height: 40, padding: 0, border: '1.5px solid #e5e7eb', borderRadius: 10, background: '#fff', cursor: 'pointer' }}
-                          title="Pick a color"
-                        />
+                        {/* gradient color picker (opens on click) */}
+                        <div ref={colorPickerRef} style={{ position: 'relative' }}>
+                          <button
+                            type="button"
+                            onClick={() => setShowColorPicker(v => !v)}
+                            title="Open color picker"
+                            style={{
+                              width: 46, height: 40, padding: 0, borderRadius: 10, cursor: 'pointer',
+                              border: '1.5px solid #e5e7eb',
+                              background: /^#[0-9a-fA-F]{6}$/.test(form.textColor) ? form.textColor : DEFAULT_TEXT_COLOR,
+                              boxShadow: 'inset 0 0 0 2px #fff',
+                            }}
+                          />
+                          {showColorPicker && (
+                            <div style={{
+                              position: 'absolute', top: 48, left: 0, zIndex: 50,
+                              background: '#fff', borderRadius: 12, padding: 12,
+                              border: '1px solid #eee', boxShadow: '0 8px 28px rgba(0,0,0,0.18)',
+                            }}>
+                              <HexColorPicker
+                                color={/^#[0-9a-fA-F]{6}$/.test(form.textColor) ? form.textColor : DEFAULT_TEXT_COLOR}
+                                onChange={c => setField('textColor', c)}
+                              />
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+                                <span style={{ fontSize: 12, color: '#888', fontWeight: 600 }}>HEX</span>
+                                <input
+                                  type="text"
+                                  value={form.textColor}
+                                  onChange={e => setField('textColor', e.target.value)}
+                                  placeholder="#ffffff"
+                                  style={{ ...inputStyle, padding: '6px 10px', fontFamily: 'monospace', fontSize: 13 }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowColorPicker(false)}
+                                  style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#555' }}
+                                >
+                                  Done
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                         {/* hex input */}
                         <input
                           type="text"
