@@ -45,6 +45,79 @@ export async function cloverFetch(path: string, init: RequestInit = {}): Promise
   });
 }
 
+/**
+ * Fetch all line items on a Clover order and group their ids by the Clover
+ * inventory item (product) id. Used to recover the per-unit Clover line-item
+ * ids required for itemized refunds when they weren't stored on the order.
+ *
+ * GET /orders/{cloverOrderId}/line_items?expand=item
+ * Returns {} on any failure (caller falls back gracefully).
+ */
+export async function getOrderLineItemIdsByProduct(
+  cloverOrderId: string,
+): Promise<Record<string, string[]>> {
+  const map: Record<string, string[]> = {};
+  if (!cloverOrderId) return map;
+  try {
+    const res = await cloverFetch(`/orders/${cloverOrderId}/line_items?expand=item`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) {
+      await res.text().catch(() => undefined);
+      return map;
+    }
+    const data = (await res.json()) as {
+      elements?: Array<{ id?: string; item?: { id?: string } }>;
+    };
+    for (const li of data.elements ?? []) {
+      const pid = li.item?.id;
+      if (!pid || !li.id) continue;
+      (map[pid] ??= []).push(li.id);
+    }
+  } catch (err) {
+    console.warn('[clover] getOrderLineItemIdsByProduct failed:', (err as Error).message);
+  }
+  return map;
+}
+
+/**
+ * Best-effort inventory restore for refunded units. Reads the current tracked
+ * stock for a Clover inventory item and adds back `units`. Returns silently
+ * (never throws) — inventory restore is non-fatal to a cancellation approval,
+ * and items that aren't stock-tracked simply have no `item_stocks` record.
+ */
+export async function restoreItemStock(
+  productId: string,
+  units: number,
+): Promise<{ restored: boolean; newQuantity?: number; reason?: string }> {
+  if (!productId || units <= 0) {
+    return { restored: false, reason: 'nothing to restore' };
+  }
+  try {
+    const getRes = await cloverFetch(`/item_stocks/${productId}`);
+    if (!getRes.ok) {
+      // 404 => item is not stock-tracked; anything else => skip silently.
+      await getRes.text().catch(() => undefined);
+      return { restored: false, reason: `stock read HTTP ${getRes.status}` };
+    }
+    const stock = (await getRes.json()) as { quantity?: number };
+    const current = typeof stock.quantity === 'number' ? stock.quantity : 0;
+    const newQuantity = current + units;
+
+    const putRes = await cloverFetch(`/item_stocks/${productId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ quantity: newQuantity }),
+    });
+    if (!putRes.ok) {
+      await putRes.text().catch(() => undefined);
+      return { restored: false, reason: `stock write HTTP ${putRes.status}` };
+    }
+    return { restored: true, newQuantity };
+  } catch (err) {
+    return { restored: false, reason: (err as Error).message };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Rate-limit handling (retry + throttle)
 // ---------------------------------------------------------------------------

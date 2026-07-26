@@ -66,7 +66,9 @@ export async function POST(req: NextRequest) {
       order.cancelledAt = now;
       if (note) order.cancelReason = note;
     }
-    await order.save();
+    // Validate only changed fields — storefront orders lack the admin schema's
+    // required `subtotal`/`total`, so a full validation would reject the save.
+    await order.save({ validateModifiedOnly: true });
     updated++;
   }
 

@@ -14,6 +14,12 @@ export interface OrderItem {
   quantity: number;
   imageUrl: string;
   modifiers?: OrderItemModifier[];
+  /** Per-unit tax in cents (used to preview refund amounts). */
+  taxPerUnit?: number;
+  /** Units already refunded for this item. */
+  cancelledQuantity?: number;
+  /** Cents already refunded for this item. */
+  refundedAmount?: number;
 }
 
 export interface OrderStatusHistoryEntry {

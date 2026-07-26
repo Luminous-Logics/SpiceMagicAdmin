@@ -22,8 +22,18 @@ export const ORDER_STATUSES = [
 ] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
-/** Payment state. Mirrors the legacy `Order.status` field values. */
-export const PAYMENT_STATUSES = ['pending', 'paid', 'failed'] as const;
+/**
+ * Payment state. Mirrors the shared `Order.status` field values.
+ * `partially_refunded` / `refunded` are written by the cancellation-approval
+ * flow after a Clover refund succeeds.
+ */
+export const PAYMENT_STATUSES = [
+  'pending',
+  'paid',
+  'failed',
+  'partially_refunded',
+  'refunded',
+] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
 /** How the customer receives the order. */
@@ -125,6 +135,8 @@ export const PAYMENT_STATUS_META: Record<PaymentStatus, StatusMeta> = {
   pending: { label: 'Pending', color: '#b8860b', bg: '#fef7e0', icon: 'fa-clock' },
   paid: { label: 'Paid', color: '#1a7a3c', bg: '#e6f9ee', icon: 'fa-circle-check' },
   failed: { label: 'Failed', color: '#c0392b', bg: '#fde8e8', icon: 'fa-circle-xmark' },
+  partially_refunded: { label: 'Partially Refunded', color: '#b45309', bg: '#fff3e0', icon: 'fa-rotate-left' },
+  refunded: { label: 'Refunded', color: '#6b21a8', bg: '#f3e8fd', icon: 'fa-rotate-left' },
 };
 
 export const DELIVERY_METHOD_META: Record<DeliveryMethod, { label: string; icon: string }> = {

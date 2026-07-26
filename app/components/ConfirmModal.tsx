@@ -7,6 +7,10 @@ interface ConfirmModalProps {
   title?: string;
   message: string;
   confirmLabel?: string;
+  /** Font Awesome icon class (without the `fas` prefix). Defaults to a trash icon. */
+  icon?: string;
+  /** Disables the confirm button and shows a busy state (e.g. while a request runs). */
+  busy?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -16,6 +20,8 @@ export default function ConfirmModal({
   title = 'Are you sure?',
   message,
   confirmLabel = 'Delete',
+  icon = 'fa-trash-alt',
+  busy = false,
   onConfirm,
   onCancel,
 }: ConfirmModalProps) {
@@ -65,7 +71,7 @@ export default function ConfirmModal({
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           margin: '0 auto 20px',
         }}>
-          <i className="fas fa-trash-alt" style={{ fontSize: 24, color: '#E31E24' }} />
+          <i className={`fas ${icon}`} style={{ fontSize: 24, color: '#E31E24' }} />
         </div>
 
         {/* title */}
@@ -82,12 +88,13 @@ export default function ConfirmModal({
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
           <button
             onClick={onCancel}
+            disabled={busy}
             style={{
               flex: 1,
               background: '#f1f5f9', color: '#444',
               border: '1.5px solid #e5e7eb',
               borderRadius: 12, padding: '12px 0',
-              fontSize: 14, fontWeight: 600, cursor: 'pointer',
+              fontSize: 14, fontWeight: 600, cursor: busy ? 'not-allowed' : 'pointer',
               transition: 'background 0.15s',
             }}
             onMouseEnter={e => (e.currentTarget.style.background = '#e2e8f0')}
@@ -97,19 +104,21 @@ export default function ConfirmModal({
           </button>
           <button
             onClick={onConfirm}
+            disabled={busy}
             style={{
               flex: 1,
               background: 'linear-gradient(135deg, #e74c3c, #E31E24)',
               color: '#fff', border: 'none',
               borderRadius: 12, padding: '12px 0',
-              fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              fontSize: 14, fontWeight: 700, cursor: busy ? 'not-allowed' : 'pointer',
               boxShadow: '0 4px 14px rgba(227,30,36,0.35)',
+              opacity: busy ? 0.7 : 1,
               transition: 'opacity 0.15s',
             }}
-            onMouseEnter={e => (e.currentTarget.style.opacity = '0.88')}
-            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+            onMouseEnter={e => { if (!busy) e.currentTarget.style.opacity = '0.88'; }}
+            onMouseLeave={e => { if (!busy) e.currentTarget.style.opacity = '1'; }}
           >
-            <i className="fas fa-trash-alt" style={{ marginRight: 7 }} />
+            <i className={`fas ${busy ? 'fa-circle-notch fa-spin' : icon}`} style={{ marginRight: 7 }} />
             {confirmLabel}
           </button>
         </div>

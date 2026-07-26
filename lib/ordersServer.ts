@@ -197,19 +197,39 @@ export async function enrichOrders(orders: LeanOrder[]): Promise<EnrichedOrder[]
 
   return orders.map((o) => {
     const customer = pickCustomer(o, userMap.get(o.userId));
+
+    // Storefront orders store only `totalAmount` (cents) — not the admin's
+    // subtotal/tax/deliveryFee/total breakdown. Reconstruct what we can from the
+    // line items and the stored grand total so the UI never shows $0.
+    const items = Array.isArray(o.items) ? o.items : [];
+    const computedSubtotal = items.reduce(
+      (sum, it) => sum + (it.finalPrice || 0) * (it.quantity || 0),
+      0,
+    );
+    const computedTax = items.reduce(
+      (sum, it) => sum + (it.taxPerUnit || 0) * (it.quantity || 0),
+      0,
+    );
+    const couponDiscount = o.couponDiscount ?? 0;
+    const subtotal = o.subtotal || computedSubtotal;
+    const tax = o.tax || computedTax;
+    const storedDeliveryFee = o.deliveryFee ?? 0;
+    const total = o.total || o.totalAmount || Math.max(0, subtotal - couponDiscount + tax + storedDeliveryFee);
+    // If a grand total is known but no explicit delivery fee was stored, treat
+    // the unexplained remainder as the delivery fee.
+    const deliveryFee = storedDeliveryFee || Math.max(0, total - subtotal + couponDiscount - tax);
+
     return {
       _id: o._id.toString(),
       ...customer,
-      itemsCount: Array.isArray(o.items)
-        ? o.items.reduce((sum, it) => sum + (it.quantity || 0), 0)
-        : 0,
-      items: o.items || [],
-      subtotal: o.subtotal ?? 0,
-      tax: o.tax ?? 0,
-      deliveryFee: o.deliveryFee ?? 0,
+      itemsCount: items.reduce((sum, it) => sum + (it.quantity || 0), 0),
+      items,
+      subtotal,
+      tax,
+      deliveryFee,
       couponCode: o.couponCode || '',
-      couponDiscount: o.couponDiscount ?? 0,
-      total: o.total ?? 0,
+      couponDiscount,
+      total,
       paymentStatus: normalizePaymentStatus(o.status),
       orderStatus: normalizeOrderStatus(o.orderStatus),
       deliveryMethod: normalizeDeliveryMethod(o.deliveryMethod),

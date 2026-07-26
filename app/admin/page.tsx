@@ -46,6 +46,17 @@ const cards: DashCard[] = [
     circleColor: '#E31E24',
   },
   {
+    href: '/admin/cancellations',
+    badge: 'Refunds',
+    badgeColor: '#b45309',
+    iconClass: 'fa-solid fa-rotate-left',
+    iconColor: '#b45309',
+    bgColor: 'rgba(180,83,9,0.08)',
+    title: 'Cancellation Requests',
+    desc: 'Review customer cancellation requests, approve to issue a real Clover refund and restore stock, or reject them.',
+    circleColor: '#b45309',
+  },
+  {
     href: '/admin/sync',
     badge: 'Live',
     badgeColor: '#76a713',

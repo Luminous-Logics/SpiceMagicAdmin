@@ -95,7 +95,10 @@ export async function PATCH(
     order.cancelledAt = now;
     if (note) order.cancelReason = note;
   }
-  await order.save();
+  // Validate only the fields we changed. Storefront orders use a different
+  // schema (e.g. `totalAmount` instead of the admin's required `subtotal`/
+  // `total`), so a full-document validation would wrongly reject the save.
+  await order.save({ validateModifiedOnly: true });
 
   const raw = order.toObject() as LeanOrder;
   const [enriched] = await enrichOrders([raw]);

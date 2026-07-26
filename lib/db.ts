@@ -35,8 +35,11 @@ export default async function dbConnect() {
   }
 
   if (!global._mongooseCache.promise) {
+    // Database name comes from env so you can switch DBs without code changes.
+    // Falls back to 'SpiceMagik' if MONGO_DB_NAME is not set.
+    const dbName = process.env.MONGO_DB_NAME || 'SpiceMagik';
     global._mongooseCache.promise = mongoose.connect(process.env.MONGO_URI!, {
-      dbName: 'SpiceMagik',
+      dbName,
       bufferCommands: false,
     });
   }

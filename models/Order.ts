@@ -20,6 +20,54 @@ export interface IOrderItem {
   quantity: number;
   imageUrl: string;
   modifiers?: IOrderItemModifier[];
+  /** Per-unit tax in cents (used to compute refund amounts). */
+  taxPerUnit?: number;
+  /** Clover ORDER line-item ids, one per purchased unit. */
+  cloverLineItemIds?: string[];
+  /** Units already refunded for this item (default 0). */
+  cancelledQuantity?: number;
+  /** Cents already refunded for this item (default 0). */
+  refundedAmount?: number;
+}
+
+/**
+ * A single item selected within a customer cancellation request. Amounts are
+ * computed by the storefront at request time and MUST be trusted as stored —
+ * never recomputed from client input on approval.
+ */
+export interface ICancellationRequestItem {
+  productId: string;
+  name: string;
+  /** Units to cancel in this request. */
+  quantity: number;
+  /** Clover line-item ids selected for these units. */
+  lineItemIds: string[];
+  /** Cents per unit (finalPrice + taxPerUnit). */
+  unitRefundAmount: number;
+  /** unitRefundAmount * quantity. */
+  refundAmount: number;
+}
+
+/**
+ * A customer-submitted cancellation request appended by the storefront. The
+ * admin reviews each one and approves (issuing a real Clover refund) or rejects
+ * it. The sub-document `_id` is the handle used by the approve/reject routes.
+ */
+export interface ICancellationRequest {
+  _id: mongoose.Types.ObjectId;
+  status: 'pending' | 'approved' | 'rejected';
+  reason?: string;
+  /** Total cents for this request. */
+  refundAmount: number;
+  requestedAt: Date;
+  processedAt?: Date;
+  /** Admin id/email that approved or rejected the request. */
+  processedBy?: string;
+  /** Rejection reason / note. */
+  adminNote?: string;
+  /** Clover return id, set on approval. */
+  cloverRefundId?: string;
+  items: ICancellationRequestItem[];
 }
 
 /**
@@ -44,11 +92,31 @@ export interface IOrder extends Document {
   couponCode: string;
   couponDiscount: number;
   total: number;
+  /**
+   * Storefront-written grand total in cents. The storefront schema stores only
+   * `totalAmount` (not the admin's `subtotal`/`tax`/`deliveryFee`/`total`
+   * breakdown), so read routes fall back to this when the breakdown is absent.
+   */
+  totalAmount?: number;
   stripePaymentIntentId: string;
   deliveryAddress: Record<string, unknown>;
   deliveryMethod: 'pickup' | 'delivery';
-  /** Payment status (legacy field). */
-  status: 'pending' | 'paid' | 'failed';
+  /** Payment status (also carries refund states after cancellation approval). */
+  status:
+    | 'pending'
+    | 'paid'
+    | 'failed'
+    | 'partially_refunded'
+    | 'refunded';
+  // ── Clover Ecommerce refund fields (shared with the storefront) ───────────
+  /** Clover order id — target for the returns (refund) API. */
+  cloverOrderId?: string;
+  /** Clover charge id. */
+  paymentId?: string;
+  /** Running sum of refunds in cents. */
+  totalRefunded?: number;
+  /** Customer cancellation requests, appended by the storefront. */
+  cancellationRequests: ICancellationRequest[];
   /** Fulfillment lifecycle status. */
   orderStatus:
     | 'pending'
@@ -82,6 +150,38 @@ const StatusHistorySchema = new Schema<IOrderStatusHistory>(
   { _id: false },
 );
 
+const CancellationRequestItemSchema = new Schema<ICancellationRequestItem>(
+  {
+    productId: String,
+    name: String,
+    quantity: Number,
+    lineItemIds: { type: [String], default: [] },
+    unitRefundAmount: Number,
+    refundAmount: Number,
+  },
+  { _id: false },
+);
+
+const CancellationRequestSchema = new Schema<ICancellationRequest>(
+  {
+    status: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending',
+    },
+    reason: { type: String, default: '' },
+    refundAmount: { type: Number, default: 0 },
+    requestedAt: { type: Date, default: Date.now },
+    processedAt: { type: Date, default: null },
+    processedBy: { type: String, default: '' },
+    adminNote: { type: String, default: '' },
+    cloverRefundId: { type: String, default: '' },
+    items: { type: [CancellationRequestItemSchema], default: [] },
+  },
+  // Keep the sub-document `_id` — it is the handle the approve/reject routes use.
+  { _id: true },
+);
+
 const OrderSchema = new Schema<IOrder>(
   {
     userId: { type: String, required: true },
@@ -101,6 +201,10 @@ const OrderSchema = new Schema<IOrder>(
             _id: false,
           },
         ],
+        taxPerUnit: { type: Number, default: 0 },
+        cloverLineItemIds: { type: [String], default: [] },
+        cancelledQuantity: { type: Number, default: 0 },
+        refundedAmount: { type: Number, default: 0 },
       },
     ],
     subtotal: { type: Number, required: true },
@@ -109,7 +213,12 @@ const OrderSchema = new Schema<IOrder>(
     couponCode: { type: String, default: '' },
     couponDiscount: { type: Number, default: 0 },
     total: { type: Number, required: true },
+    totalAmount: { type: Number },
     stripePaymentIntentId: { type: String, default: '' },
+    cloverOrderId: { type: String, default: '' },
+    paymentId: { type: String, default: '' },
+    totalRefunded: { type: Number, default: 0 },
+    cancellationRequests: { type: [CancellationRequestSchema], default: [] },
     deliveryAddress: { type: Schema.Types.Mixed },
     deliveryMethod: { type: String, enum: DELIVERY_METHODS, default: 'pickup' },
     status: { type: String, enum: PAYMENT_STATUSES, default: 'pending' },

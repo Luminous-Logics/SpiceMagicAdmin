@@ -13,6 +13,7 @@ import type { Order } from './types';
 import OrderStatusBadge from './OrderStatusBadge';
 import PaymentStatusBadge from './PaymentStatusBadge';
 import OrderTimeline from './OrderTimeline';
+import CancelOrderModal from './CancelOrderModal';
 
 const PLACEHOLDER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' fill='%23f0f0f0'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='20' fill='%23ccc'%3E🌶%3C/text%3E%3C/svg%3E";
@@ -70,6 +71,7 @@ export default function OrderDetailsDrawer({
   const [loading, setLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [note, setNote] = useState('');
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
 
   // Seed from the passed row, then fetch the freshest copy by id.
   useEffect(() => {
@@ -116,6 +118,41 @@ export default function OrderDetailsDrawer({
       toast.success(`Order marked ${ORDER_STATUS_META[target as keyof typeof ORDER_STATUS_META]?.label ?? target}`);
     } else {
       toast.error(data.error || 'Update failed');
+    }
+  };
+
+  // Admin-initiated direct cancellation. Refunds the customer via Clover when
+  // the order was paid, then flips the lifecycle to cancelled. Used when a
+  // customer cancels by phone instead of submitting a self-service request.
+  const willRefund =
+    detail.paymentStatus === 'paid' || detail.paymentStatus === 'partially_refunded';
+
+  const cancelOrder = async (items: { productId: string; quantity: number }[] | null) => {
+    setUpdating(true);
+    try {
+      const res = await fetch(`/api/orders/${detail._id}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: note.trim(), items }),
+      });
+      const data = await res.json();
+      if (res.ok && data.order) {
+        setDetail(data.order);
+        setNote('');
+        onUpdated(data.order);
+        toast.success(
+          data.refunded
+            ? `${data.partial ? 'Partial refund' : 'Order cancelled'} — ${formatMoney(data.refundAmount)} refunded`
+            : 'Order cancelled',
+        );
+        setConfirmCancelOpen(false);
+      } else {
+        toast.error(data.error || 'Cancel failed');
+      }
+    } catch {
+      toast.error('Cancel failed');
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -209,11 +246,11 @@ export default function OrderDetailsDrawer({
               )}
               {!terminal && (
                 <button
-                  onClick={() => transition('cancelled', 'Cancel this order? This cannot be undone.')}
+                  onClick={() => setConfirmCancelOpen(true)}
                   disabled={updating}
                   style={{ background: '#fff5f5', color: '#E31E24', border: '1px solid #fcc', borderRadius: 8, padding: '10px 18px', fontSize: 13, fontWeight: 700, cursor: updating ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 7 }}
                 >
-                  <i className="fas fa-ban" /> Cancel Order
+                  <i className="fas fa-ban" /> {willRefund ? 'Cancel & Refund' : 'Cancel Order'}
                 </button>
               )}
               <button
@@ -271,6 +308,12 @@ export default function OrderDetailsDrawer({
                       {formatMoney(it.finalPrice)} × {it.quantity}
                       {it.discount > 0 && <span style={{ color: '#e67e22', marginLeft: 6 }}>−{it.discount}%</span>}
                     </div>
+                    {(it.cancelledQuantity ?? 0) > 0 && (
+                      <div style={{ fontSize: 11, color: '#b45309', marginTop: 3, fontWeight: 600 }}>
+                        <i className="fas fa-rotate-left" style={{ marginRight: 5 }} />
+                        {it.cancelledQuantity} refunded{(it.cancelledQuantity ?? 0) >= it.quantity ? ' (all)' : ''}
+                      </div>
+                    )}
                   </div>
                   <div style={{ fontWeight: 700, color: '#222', fontSize: 13, whiteSpace: 'nowrap' }}>
                     {formatMoney(it.finalPrice * it.quantity)}
@@ -312,6 +355,14 @@ export default function OrderDetailsDrawer({
             </div>
           </Section>
         </div>
+
+        <CancelOrderModal
+          open={confirmCancelOpen}
+          order={detail}
+          busy={updating}
+          onConfirm={cancelOrder}
+          onCancel={() => { if (!updating) setConfirmCancelOpen(false); }}
+        />
       </div>
 
       <style>{`
