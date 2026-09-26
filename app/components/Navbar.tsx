@@ -33,6 +33,14 @@ export default function Navbar() {
           <i className="fas fa-receipt" />
           <span>Orders</span>
         </Link>
+        <Link href="/admin/food-beverages" className="spice-navbar__link">
+          <i className="fas fa-utensils" />
+          <span>Food &amp; Beverages</span>
+        </Link>
+        <Link href="/admin/food-orders" className="spice-navbar__link">
+          <i className="fas fa-bell-concierge" />
+          <span>Food Orders</span>
+        </Link>
         <Link href="/admin/cancellations" className="spice-navbar__link">
           <i className="fas fa-rotate-left" />
           <span>Cancellations</span>
@@ -72,6 +80,22 @@ export default function Navbar() {
         >
           <i className="fas fa-receipt" />
           Orders
+        </Link>
+        <Link
+          href="/admin/food-beverages"
+          className="spice-navbar__mobile-link"
+          onClick={() => setMenuOpen(false)}
+        >
+          <i className="fas fa-utensils" />
+          Food &amp; Beverages
+        </Link>
+        <Link
+          href="/admin/food-orders"
+          className="spice-navbar__mobile-link"
+          onClick={() => setMenuOpen(false)}
+        >
+          <i className="fas fa-bell-concierge" />
+          Food Orders
         </Link>
         <Link
           href="/admin/cancellations"
