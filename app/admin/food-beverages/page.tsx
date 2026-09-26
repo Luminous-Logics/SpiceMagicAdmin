@@ -343,7 +343,12 @@ export default function FoodBeveragesPage() {
 
   /* Share the storefront menu link via the native share sheet (WhatsApp, email, etc.). */
   const shareMenu = async () => {
-    const url = `${STOREFRONT_URL}/preorder-food`;
+    // WhatsApp (and most platforms) cache a link's preview per exact URL for ~7 days.
+    // A daily-rotating stamp makes the first share each day a "new" URL, so the preview
+    // is re-crawled and the current thumbnail always shows — without an ugly, ever-
+    // changing param. The storefront page is force-dynamic, so the extra query is harmless.
+    const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
+    const url = `${STOREFRONT_URL}/preorder-food?ref=${stamp}`;
     const text = "Check out Spice Magik's fresh food menu and preorder yours for weekend pickup!";
     try {
       if (typeof navigator !== 'undefined' && navigator.share) {
