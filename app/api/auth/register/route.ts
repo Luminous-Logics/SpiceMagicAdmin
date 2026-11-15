@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs';
 import dbConnect from '@/lib/db';
 import User from '@/models/User';
 
+const MAX_ADMIN_USERS = 5;
+
 export async function POST(req: Request) {
   try {
     const { name, email, password } = await req.json();
@@ -26,6 +28,14 @@ export async function POST(req: Request) {
     const existing = await User.findOne({ email: normalizedEmail }).lean();
     if (existing) {
       return NextResponse.json({ error: 'An account with this email already exists.' }, { status: 409 });
+    }
+
+    const adminCount = await User.countDocuments({ role: 'admin' });
+    if (adminCount >= MAX_ADMIN_USERS) {
+      return NextResponse.json(
+        { error: '5 admin users are already present. More admin users can\'t be added.' },
+        { status: 403 }
+      );
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
