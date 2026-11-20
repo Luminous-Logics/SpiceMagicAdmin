@@ -27,6 +27,104 @@ interface Product {
 
 const PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'%3E%3Crect width='56' height='56' fill='%23f0f0f0'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='22' fill='%23ccc'%3E🌶%3C/text%3E%3C/svg%3E";
 
+const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
+const DEFAULT_PAGE_SIZE = 50;
+
+function PaginationBar({
+  page,
+  pages,
+  total,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+}: {
+  page: number;
+  pages: number;
+  total: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
+}) {
+  if (total === 0) return null;
+
+  const start = (page - 1) * pageSize + 1;
+  const end = Math.min(page * pageSize, total);
+  let from = Math.max(1, page - 2);
+  let to = Math.min(pages, from + 4);
+  from = Math.max(1, to - 4);
+  const nums: number[] = [];
+  for (let n = from; n <= to; n++) nums.push(n);
+
+  const btn = (disabled: boolean, active = false): React.CSSProperties => ({
+    minWidth: 36,
+    height: 36,
+    padding: '0 10px',
+    borderRadius: 8,
+    border: active ? '1px solid #76a713' : '1px solid #e5e5e5',
+    background: active ? '#76a713' : '#fff',
+    color: active ? '#fff' : disabled ? '#ccc' : '#444',
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+  });
+
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      flexWrap: 'wrap',
+      gap: 12,
+      marginTop: 16,
+      padding: '12px 14px',
+      background: '#fff',
+      border: '1px solid #eee',
+      borderRadius: 12,
+    }}>
+      <span style={{ fontSize: 13, color: '#777' }}>
+        Showing {start.toLocaleString()}–{end.toLocaleString()} of {total.toLocaleString()}
+      </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <button type="button" disabled={page <= 1} onClick={() => onPageChange(page - 1)} style={btn(page <= 1)}>
+          Prev
+        </button>
+        {from > 1 && (
+          <>
+            <button type="button" onClick={() => onPageChange(1)} style={btn(false, page === 1)}>1</button>
+            {from > 2 && <span style={{ color: '#aaa', padding: '0 2px' }}>…</span>}
+          </>
+        )}
+        {nums.map((n) => (
+          <button key={n} type="button" onClick={() => onPageChange(n)} style={btn(false, n === page)}>
+            {n}
+          </button>
+        ))}
+        {to < pages && (
+          <>
+            {to < pages - 1 && <span style={{ color: '#aaa', padding: '0 2px' }}>…</span>}
+            <button type="button" onClick={() => onPageChange(pages)} style={btn(false, page === pages)}>{pages}</button>
+          </>
+        )}
+        <button type="button" disabled={page >= pages} onClick={() => onPageChange(page + 1)} style={btn(page >= pages)}>
+          Next
+        </button>
+      </div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#777' }}>
+        Per page
+        <select
+          value={pageSize}
+          onChange={(e) => onPageSizeChange(Number(e.target.value))}
+          style={{ border: '1px solid #e5e5e5', borderRadius: 8, padding: '6px 8px', fontSize: 13, background: '#fff' }}
+        >
+          {PAGE_SIZE_OPTIONS.map((n) => (
+            <option key={n} value={n}>{n}</option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+}
+
 function StockBadge({ stock }: { stock: number | null }) {
   if (stock === null) {
     return <span style={{ background: '#f0f0f0', color: '#888', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700 }}>N/A</span>;
@@ -305,27 +403,73 @@ export default function SyncPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
+  const [total, setTotal] = useState(0);
+  const [totalAll, setTotalAll] = useState(0);
+  const [pages, setPages] = useState(1);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ upserted: number; unchanged: number; total: number; errors: string[] } | null>(null);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const requestSeq = useRef(0);
+  const debouncedRef = useRef('');
+
+  const isAdmin = session?.user?.role === 'admin';
 
   useEffect(() => {
     if (status === 'loading') return;
-    if (!session || session.user?.role !== 'admin') router.replace('/login');
-  }, [session, status, router]);
+    if (!session || !isAdmin) router.replace('/login');
+  }, [session, status, isAdmin, router]);
+
+  // Search the full catalog on the server. Page resets only when the query
+  // text changes, and both updates land together so we don't request the old page.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const next = search.trim();
+      if (debouncedRef.current === next) return;
+      debouncedRef.current = next;
+      setDebouncedSearch(next);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const fetchProducts = useCallback(async () => {
+    const seq = ++requestSeq.current;
     setLoading(true);
-    const res = await fetch('/api/products?limit=500');
-    const data = await res.json();
-    setProducts(data.products || []);
-    setLoading(false);
-  }, []);
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(pageSize),
+      });
+      if (debouncedSearch) params.set('search', debouncedSearch);
+      const res = await fetch(`/api/products?${params.toString()}`);
+      const data = await res.json();
+      if (seq !== requestSeq.current) return;
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to load products');
+        return;
+      }
+      setProducts(data.products || []);
+      setTotal(data.total ?? 0);
+      setTotalAll(data.totalAll ?? data.total ?? 0);
+      setPages(Math.max(1, data.pages || 1));
+    } catch {
+      if (seq !== requestSeq.current) return;
+      toast.error('Failed to load products');
+    } finally {
+      if (seq === requestSeq.current) setLoading(false);
+    }
+  }, [page, pageSize, debouncedSearch]);
 
+  // isAdmin is a boolean, so a NextAuth session refresh (tab focus, or the
+  // 5-minute refetch) does not reload the catalog. Products load when the
+  // admin flag, page, page size, or search actually changes, and after Sync.
   useEffect(() => {
-    if (session?.user?.role === 'admin') fetchProducts();
-  }, [session, fetchProducts]);
+    if (isAdmin) fetchProducts();
+  }, [isAdmin, fetchProducts]);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -337,11 +481,6 @@ export default function SyncPage() {
     await fetchProducts();
     toast.success(`Sync done! ${data.upserted} upserted, ${data.unchanged} unchanged`);
   };
-
-  const filtered = products.filter((p) => {
-    const q = search.toLowerCase();
-    return p.name.toLowerCase().includes(q) || p.category?.toLowerCase().includes(q) || p.productId?.toLowerCase().includes(q);
-  });
 
   const handleUploaded = (productId: string, url: string) => {
     setProducts((prev) => prev.map((p) => p.productId === productId ? { ...p, image: url } : p));
@@ -369,7 +508,11 @@ export default function SyncPage() {
               <Link href="/admin" style={{ color: '#999', fontSize: 13, textDecoration: 'none' }}>← Back to Admin</Link>
               <h1 style={{ fontSize: 24, fontWeight: 800, color: '#222', margin: '6px 0 4px' }}>Sync Items & Upload Images</h1>
               <p style={{ fontSize: 13, color: '#777', margin: 0 }}>
-                {loading ? 'Loading…' : `${products.length} products in database`}
+                {loading && totalAll === 0
+                  ? 'Loading…'
+                  : debouncedSearch
+                    ? `${total.toLocaleString()} matching of ${totalAll.toLocaleString()} products`
+                    : `${totalAll.toLocaleString()} products in database`}
               </p>
             </div>
             <button
@@ -434,7 +577,7 @@ export default function SyncPage() {
                 </tr>
               </thead>
               <tbody>
-                {loading
+                {loading && products.length === 0
                   ? Array.from({ length: 6 }).map((_, i) => (
                       <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa' }}>
                         {Array.from({ length: 9 }).map((__, j) => (
@@ -444,9 +587,9 @@ export default function SyncPage() {
                         ))}
                       </tr>
                     ))
-                  : filtered.map((p, i) => (
-                      <tr key={p._id} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f0f0f0' }}>
-                        <td style={{ padding: '12px 14px', fontSize: 13, color: '#aaa', fontWeight: 600 }}>{i + 1}</td>
+                  : products.map((p, i) => (
+                      <tr key={p._id} style={{ background: i % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid #f0f0f0', opacity: loading ? 0.55 : 1 }}>
+                        <td style={{ padding: '12px 14px', fontSize: 13, color: '#aaa', fontWeight: 600 }}>{(page - 1) * pageSize + i + 1}</td>
                         <td style={{ padding: '12px 14px' }}>
                           <UploadCell product={p} onUploaded={handleUploaded} />
                         </td>
@@ -468,7 +611,7 @@ export default function SyncPage() {
                         </td>
                       </tr>
                     ))}
-                {!loading && filtered.length === 0 && (
+                {!loading && products.length === 0 && (
                   <tr>
                     <td colSpan={9} style={{ padding: '40px', textAlign: 'center', color: '#aaa' }}>
                       <i className="fas fa-box-open" style={{ fontSize: 32, marginBottom: 12, display: 'block' }} />
@@ -482,12 +625,12 @@ export default function SyncPage() {
 
           {/* Mobile cards */}
           <div className="d-md-none">
-            {loading
+            {loading && products.length === 0
               ? Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="skeleton" style={{ height: 120, borderRadius: 12, marginBottom: 12 }} />
                 ))
-              : filtered.map((p) => (
-                  <div key={p._id} style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16, marginBottom: 12, boxShadow: '0 2px 6px rgba(0,0,0,0.04)' }}>
+              : products.map((p) => (
+                  <div key={p._id} style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16, marginBottom: 12, boxShadow: '0 2px 6px rgba(0,0,0,0.04)', opacity: loading ? 0.55 : 1 }}>
                     <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={p.image || PLACEHOLDER} alt={p.name} width={56} height={56} style={{ borderRadius: 8, objectFit: 'cover', border: '1px solid #eee', flexShrink: 0 }} onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER; }} />
@@ -511,6 +654,18 @@ export default function SyncPage() {
                   </div>
                 ))}
           </div>
+
+          <PaginationBar
+            page={page}
+            pages={pages}
+            total={total}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
+          />
         </div>
       </div>
       <Footer />

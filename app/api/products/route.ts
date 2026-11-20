@@ -3,22 +3,30 @@ import dbConnect from '@/lib/db';
 import Product from '@/models/Product';
 import type { SortOrder } from 'mongoose';
 
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export async function GET(req: NextRequest) {
   await dbConnect();
   const { searchParams } = new URL(req.url);
-  const page = parseInt(searchParams.get('page') || '1');
-  const limit = parseInt(searchParams.get('limit') || '20');
+  const rawPage = parseInt(searchParams.get('page') || '1', 10);
+  const rawLimit = parseInt(searchParams.get('limit') || '20', 10);
+  const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 100) : 20;
   const sort = searchParams.get('sort') || 'newest';
-  const search = searchParams.get('search') || '';
+  const search = (searchParams.get('search') || '').trim();
   const category = searchParams.get('category') || '';
   const minPrice = searchParams.get('minPrice');
   const maxPrice = searchParams.get('maxPrice');
 
   const query: Record<string, unknown> = {};
   if (search) {
+    const pattern = escapeRegex(search);
     query.$or = [
-      { name: { $regex: search, $options: 'i' } },
-      { productId: { $regex: search, $options: 'i' } },
+      { name: { $regex: pattern, $options: 'i' } },
+      { productId: { $regex: pattern, $options: 'i' } },
+      { category: { $regex: pattern, $options: 'i' } },
     ];
   }
   if (category) query.category = category;
@@ -38,22 +46,28 @@ export async function GET(req: NextRequest) {
   const sortObj = sortMap[sort] || { updatedAt: -1 as SortOrder };
 
   const skip = (page - 1) * limit;
-  const [products, total] = await Promise.all([
+  const filtered = Object.keys(query).length > 0;
+  const [products, total, totalAll, categoryAgg, priceStats] = await Promise.all([
     Product.find(query).sort(sortObj).skip(skip).limit(limit).lean(),
     Product.countDocuments(query),
+    filtered ? Product.countDocuments({}) : Promise.resolve(0),
+    Product.aggregate<{ _id: string; count: number }>([
+      { $match: { category: { $type: 'string', $ne: '' } } },
+      { $group: { _id: '$category', count: { $sum: 1 } } },
+      { $sort: { _id: 1 } },
+    ]),
+    Product.aggregate<{ min: number; max: number }>([
+      { $match: { price: { $gt: 0 } } },
+      { $group: { _id: null, min: { $min: '$price' }, max: { $max: '$price' } } },
+    ]),
   ]);
 
-  const pages = Math.ceil(total / limit);
+  const catalogTotal = filtered ? totalAll : total;
+  const pages = total === 0 ? 0 : Math.ceil(total / limit);
+  const categories = categoryAgg.map(({ _id, count }) => ({ name: _id, count }));
+  const priceRange = priceStats[0]
+    ? { min: priceStats[0].min, max: priceStats[0].max }
+    : { min: 0, max: 0 };
 
-  const allProducts = await Product.find({}).lean();
-  const categoryMap: Record<string, number> = {};
-  for (const p of allProducts) {
-    if (p.category) categoryMap[p.category] = (categoryMap[p.category] || 0) + 1;
-  }
-  const categories = Object.entries(categoryMap).map(([name, count]) => ({ name, count }));
-
-  const prices = allProducts.map((p) => p.price).filter(Boolean);
-  const priceRange = { min: Math.min(...prices), max: Math.max(...prices) };
-
-  return NextResponse.json({ products, total, pages, categories, priceRange });
+  return NextResponse.json({ products, total, totalAll: catalogTotal, pages, categories, priceRange });
 }
